@@ -1,0 +1,5 @@
+{
+  "name": "Absensi QR Pro",
+  "description": "Sistem absensi digital berbasis QR Code dengan integrasi Google Sheets dan dashboard admin profesional.",
+  "requestFramePermissions": ["camera"]
+}
