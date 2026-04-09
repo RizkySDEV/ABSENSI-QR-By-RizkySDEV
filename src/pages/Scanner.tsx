@@ -1,5 +1,5 @@
 import React from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { attendanceApi } from "@/lib/api";
 import { toast } from "sonner";
@@ -11,95 +11,153 @@ import {
   Camera,
   Info,
   Scan,
-  Clock
+  Clock,
+  StopCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export default function Scanner() {
   const [lastScan, setLastScan] = React.useState<any>(null);
   const [history, setHistory] = React.useState<any[]>([]);
   const [isScanning, setIsScanning] = React.useState(false);
+  const [isCameraActive, setIsCameraActive] = React.useState(false);
+  const scannerRef = React.useRef<Html5Qrcode | null>(null);
 
-  React.useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      { 
+  const startScanner = async () => {
+    try {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("reader");
+      }
+
+      const config = { 
         fps: 10, 
         qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0
-      },
-      false
-    );
+      };
 
-    scanner.render(
-      async (decodedText) => {
-        if (isScanning) return;
-        try {
-          setIsScanning(true);
-          const result = await attendanceApi.scan(decodedText);
-          const participant = result.participant;
-          setLastScan(participant);
-          setHistory(prev => [participant, ...prev].slice(0, 5));
-          toast.success(`Absensi berhasil: ${participant.name}`);
-          
-          // Play success sound if possible
-          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3");
-          audio.play().catch(() => {});
-          
-          // Reset last scan after 5 seconds
-          setTimeout(() => setLastScan(null), 5000);
-        } catch (err: any) {
-          toast.error(err.message || "Gagal mencatat absensi");
-        } finally {
-          // Delay next scan
-          setTimeout(() => setIsScanning(false), 2000);
-        }
-      },
-      (error) => {
-        // Silent error for scanner
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        config,
+        async (decodedText) => {
+          if (isScanning) return;
+          try {
+            setIsScanning(true);
+            const result = await attendanceApi.scan(decodedText);
+            const participant = result.participant;
+            setLastScan(participant);
+            setHistory(prev => [participant, ...prev].slice(0, 5));
+            toast.success(`Absensi berhasil: ${participant.name}`);
+            
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3");
+            audio.play().catch(() => {});
+            
+            setTimeout(() => setLastScan(null), 5000);
+          } catch (err: any) {
+            toast.error(err.message || "Gagal mencatat absensi");
+          } finally {
+            setTimeout(() => setIsScanning(false), 2000);
+          }
+        },
+        () => {} // Silent error
+      );
+      setIsCameraActive(true);
+    } catch (err) {
+      console.error("Failed to start scanner", err);
+      toast.error("Gagal mengakses kamera. Pastikan izin kamera diberikan.");
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try {
+        await scannerRef.current.stop();
+        setIsCameraActive(false);
+      } catch (err) {
+        console.error("Failed to stop scanner", err);
       }
-    );
+    }
+  };
 
+  React.useEffect(() => {
     return () => {
-      scanner.clear().catch(console.error);
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(console.error);
+      }
     };
   }, []);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
       <div className="space-y-8">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900 font-display tracking-tight">Scanner Absensi</h2>
-          <p className="text-slate-500 mt-1">Arahkan QR Code ke kamera untuk mencatat kehadiran.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900 font-display tracking-tight">Scanner Absensi</h2>
+            <p className="text-slate-500 mt-1">Arahkan QR Code ke kamera untuk mencatat kehadiran.</p>
+          </div>
+          {!isCameraActive ? (
+            <Button 
+              onClick={startScanner}
+              className="bg-primary hover:bg-primary-hover text-white rounded-2xl px-6 shadow-lg shadow-primary/20"
+            >
+              <Camera size={18} className="mr-2" />
+              Buka Kamera
+            </Button>
+          ) : (
+            <Button 
+              onClick={stopScanner}
+              variant="destructive"
+              className="rounded-2xl px-6 shadow-lg shadow-destructive/20"
+            >
+              <StopCircle size={18} className="mr-2" />
+              Matikan Kamera
+            </Button>
+          )}
         </div>
 
         <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
-          <CardContent className="p-0 relative">
-            <div id="reader" className="overflow-hidden"></div>
+          <CardContent className="p-0 relative bg-slate-100 min-h-[400px] flex items-center justify-center">
+            <div id="reader" className="w-full h-full overflow-hidden"></div>
             
-            {/* Scanner Overlay */}
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="w-64 h-64 border-2 border-primary/50 rounded-3xl relative">
-                <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl"></div>
-                <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl"></div>
-                <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl"></div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl"></div>
-                
-                {/* Scanning Line */}
-                <motion.div 
-                  animate={{ top: ["0%", "100%", "0%"] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  className="absolute left-0 right-0 h-0.5 bg-primary shadow-[0_0_15px_rgba(26,115,232,0.8)] z-10"
-                />
+            {!isCameraActive && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 space-y-4">
+                <div className="p-6 bg-white rounded-full shadow-sm">
+                  <Camera size={48} />
+                </div>
+                <p className="font-bold">Kamera Belum Aktif</p>
+                <Button variant="ghost" onClick={startScanner} className="text-primary font-bold">
+                  Klik untuk mengaktifkan
+                </Button>
               </div>
-            </div>
+            )}
 
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center space-x-2 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full text-white text-xs font-bold uppercase tracking-widest">
-              <Scan size={14} className="animate-pulse" />
-              <span>System Active</span>
-            </div>
+            {isCameraActive && (
+              <>
+                {/* Scanner Overlay */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="w-64 h-64 border-2 border-primary/50 rounded-3xl relative">
+                    <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl"></div>
+                    <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl"></div>
+                    <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl"></div>
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl"></div>
+                    
+                    {/* Scanning Line */}
+                    <motion.div 
+                      animate={{ top: ["0%", "100%", "0%"] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                      className="absolute left-0 right-0 h-0.5 bg-primary shadow-[0_0_15px_rgba(26,115,232,0.8)] z-10"
+                    />
+                  </div>
+                </div>
+
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center space-x-2 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full text-white text-xs font-bold uppercase tracking-widest">
+                  <Scan size={14} className="animate-pulse" />
+                  <span>System Active</span>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
