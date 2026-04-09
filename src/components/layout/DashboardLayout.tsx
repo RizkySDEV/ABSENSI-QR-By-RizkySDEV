@@ -163,10 +163,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8 lg:p-10">
-          <div className="max-w-7xl mx-auto">
+        <div className="flex-1 overflow-y-auto p-8 lg:p-10 flex flex-col">
+          <div className="max-w-7xl mx-auto flex-1 w-full">
             {children}
           </div>
+          
+          {/* Footer */}
+          <footer className="mt-12 pt-8 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-sm font-medium">
+            <p>&copy; 2026 Absensi Pro • Powered by <a href="https://portofolio-rizky-s.vercel.app/" target="_blank" rel="noreferrer" className="text-primary hover:underline">RizkySDEV</a></p>
+            <div className="flex items-center space-x-6">
+              <a href="https://wa.me/6282148380548" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors flex items-center">
+                <span className="mr-2">Hubungi Saya</span>
+                <div className="w-1.5 h-1.5 bg-success rounded-full animate-pulse"></div>
+              </a>
+              <Link to="/settings" className="hover:text-primary transition-colors">Pengaturan</Link>
+            </div>
+          </footer>
         </div>
       </main>
     </div>

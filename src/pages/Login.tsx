@@ -122,14 +122,14 @@ export default function Login() {
 
             <div className="mt-10 pt-8 border-t border-slate-100 text-center">
               <p className="text-slate-400 text-sm font-medium">
-                Butuh bantuan? <button className="text-primary font-bold hover:underline">Hubungi Support</button>
+                Butuh bantuan? <a href="https://wa.me/6282148380548" target="_blank" rel="noreferrer" className="text-primary font-bold hover:underline">Hubungi Support</a>
               </p>
             </div>
           </CardContent>
         </Card>
 
         <p className="text-center mt-8 text-slate-400 text-xs font-medium uppercase tracking-widest">
-          &copy; 2026 Absensi Pro • Powered by Google Cloud
+          &copy; 2026 Absensi Pro • Powered by <a href="https://portofolio-rizky-s.vercel.app/" target="_blank" rel="noreferrer" className="text-primary hover:underline">RizkySDEV</a>
         </p>
       </motion.div>
     </div>

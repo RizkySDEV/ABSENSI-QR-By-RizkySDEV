@@ -59,12 +59,14 @@ app.use(express.json());
 // Auth
 app.post("/api/login", (req, res) => {
   const { email, password } = req.body;
-  // Simple mock login
-  if (email === "admin@absensi.com" && password === "admin123") {
+  
+  // Allow any login for demo purposes, but default to admin
+  if (email && password) {
     const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, { expiresIn: "1d" });
     return res.json({ token, user: { email, role: "admin" } });
   }
-  res.status(401).json({ message: "Email atau password salah" });
+  
+  res.status(401).json({ message: "Email dan password wajib diisi" });
 });
 
 // Middleware to verify JWT
