@@ -4,21 +4,59 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { authApi } from "@/lib/api";
 import { 
   Database, 
   ExternalLink, 
   Save, 
   Shield, 
   Smartphone,
-  CheckCircle2
+  CheckCircle2,
+  UserPlus,
+  ShieldAlert
 } from "lucide-react";
 
 export default function Settings() {
+  const [user, setUser] = React.useState<any>(null);
+  const [admins, setAdmins] = React.useState<any[]>([]);
+  const [newAdmin, setNewAdmin] = React.useState({ email: "", password: "", name: "", role: "admin" });
   const [config, setConfig] = React.useState({
     spreadsheetId: "1-abc-def-ghi-jkl",
     apiKey: "AIzaSy...",
     adminEmail: "admin@absensi.com"
   });
+
+  React.useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const parsed = JSON.parse(userData);
+      setUser(parsed);
+      if (parsed.role === "developer") {
+        fetchAdmins();
+      }
+    }
+  }, []);
+
+  const fetchAdmins = async () => {
+    try {
+      const data = await authApi.getAdmins();
+      setAdmins(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await authApi.createAdmin(newAdmin);
+      toast.success("Admin baru berhasil ditambahkan");
+      setNewAdmin({ email: "", password: "", name: "", role: "admin" });
+      fetchAdmins();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menambahkan admin");
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +65,92 @@ export default function Settings() {
 
   return (
     <div className="max-w-4xl space-y-8">
+      {/* Developer Only: Admin Management */}
+      {user?.role === "developer" && (
+        <Card className="border-none shadow-sm bg-primary/5 border border-primary/10">
+          <CardHeader>
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-primary text-white rounded-lg">
+                <ShieldAlert size={24} />
+              </div>
+              <div>
+                <CardTitle>Manajemen Admin (Developer Only)</CardTitle>
+                <CardDescription>Daftarkan akun admin baru untuk menggunakan sistem ini</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <form onSubmit={handleCreateAdmin} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-6 rounded-2xl border border-slate-100">
+              <div className="space-y-2">
+                <Label>Nama Lengkap</Label>
+                <Input 
+                  value={newAdmin.name}
+                  onChange={(e) => setNewAdmin({...newAdmin, name: e.target.value})}
+                  placeholder="Nama Admin"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input 
+                  type="email"
+                  value={newAdmin.email}
+                  onChange={(e) => setNewAdmin({...newAdmin, email: e.target.value})}
+                  placeholder="email@admin.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input 
+                  type="password"
+                  value={newAdmin.password}
+                  onChange={(e) => setNewAdmin({...newAdmin, password: e.target.value})}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" className="w-full bg-primary">
+                  <UserPlus size={18} className="mr-2" />
+                  Tambah Admin
+                </Button>
+              </div>
+            </form>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-slate-700 ml-1">Daftar Pengelola Terdaftar</h4>
+              <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="text-left p-4 font-bold text-slate-600">Nama</th>
+                      <th className="text-left p-4 font-bold text-slate-600">Email</th>
+                      <th className="text-left p-4 font-bold text-slate-600">Role</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {admins.map((admin) => (
+                      <tr key={admin.id}>
+                        <td className="p-4 font-medium text-slate-800">{admin.name}</td>
+                        <td className="p-4 text-slate-500">{admin.email}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                            admin.role === 'developer' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'
+                          }`}>
+                            {admin.role}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Google Sheets Config */}
       <Card className="border-none shadow-sm">
         <CardHeader>

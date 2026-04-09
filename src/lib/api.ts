@@ -27,6 +27,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
 export const authApi = {
   login: (credentials: any) => apiFetch("/login", { method: "POST", body: JSON.stringify(credentials) }),
+  getAdmins: () => apiFetch("/admins"),
+  createAdmin: (data: any) => apiFetch("/admins", { method: "POST", body: JSON.stringify(data) }),
 };
 
 export const dashboardApi = {

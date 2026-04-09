@@ -10,8 +10,8 @@ import { QrCode, Mail, Lock, ArrowRight, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function Login() {
-  const [email, setEmail] = React.useState("admin@absensi.com");
-  const [password, setPassword] = React.useState("admin123");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const navigate = useNavigate();
 
@@ -75,7 +75,7 @@ export default function Login() {
                   <Input 
                     id="email" 
                     type="email" 
-                    placeholder="admin@absensipro.com" 
+                    placeholder="Masukkan email Anda" 
                     className="google-input pl-12 h-14 text-base"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

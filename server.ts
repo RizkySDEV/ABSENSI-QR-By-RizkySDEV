@@ -44,6 +44,11 @@ async function syncToGoogleSheets(data: any) {
 }
 
 // Mock Database (in-memory for demo, would be Google Sheets in real use)
+let admins = [
+  { id: "dev-1", email: "rizky@dev.com", password: "devpassword", role: "developer", name: "Rizky Developer" },
+  { id: "admin-1", email: "admin@absensi.com", password: "admin123", role: "admin", name: "Admin Utama" }
+];
+
 let participants = [
   { id: "1", nisn: "12345678", name: "Rizky Saputra", email: "rizky@example.com", class: "XII-A", field: "Skill Development", confirmed: true, qrCode: "12345678" },
   { id: "2", nisn: "87654321", name: "Budi Santoso", email: "budi@example.com", class: "XII-B", field: "Design", confirmed: false, qrCode: "87654321" }
@@ -55,19 +60,6 @@ const app = express();
 app.use(express.json());
 
 // --- API Routes ---
-
-// Auth
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
-  
-  // Allow any login for demo purposes, but default to admin
-  if (email && password) {
-    const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, { expiresIn: "1d" });
-    return res.json({ token, user: { email, role: "admin" } });
-  }
-  
-  res.status(401).json({ message: "Email dan password wajib diisi" });
-});
 
 // Middleware to verify JWT
 const authenticate = (req: any, res: any, next: any) => {
@@ -81,6 +73,51 @@ const authenticate = (req: any, res: any, next: any) => {
     res.status(401).json({ message: "Invalid token" });
   }
 };
+
+// Auth
+app.post("/api/login", (req, res) => {
+  const { email, password } = req.body;
+  
+  const user = admins.find(a => a.email === email && a.password === password);
+  
+  if (user) {
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "1d" });
+    return res.json({ token, user: { email: user.email, role: user.role, name: user.name } });
+  }
+  
+  res.status(401).json({ message: "Email atau password salah" });
+});
+
+// Admin Management (Developer Only)
+app.post("/api/admins", authenticate, (req, res) => {
+  if (req.user.role !== "developer") {
+    return res.status(403).json({ message: "Hanya developer yang dapat menambah admin" });
+  }
+  
+  const { email, password, name, role } = req.body;
+  
+  if (admins.find(a => a.email === email)) {
+    return res.status(400).json({ message: "Email sudah terdaftar" });
+  }
+
+  const newAdmin = {
+    id: Math.random().toString(36).substr(2, 9),
+    email,
+    password,
+    name,
+    role: role || "admin"
+  };
+  
+  admins.push(newAdmin);
+  res.json(newAdmin);
+});
+
+app.get("/api/admins", authenticate, (req, res) => {
+  if (req.user.role !== "developer") {
+    return res.status(403).json({ message: "Akses ditolak" });
+  }
+  res.json(admins.map(({ password, ...rest }) => rest));
+});
 
 // Dashboard Stats
 app.get("/api/stats", authenticate, (req, res) => {
