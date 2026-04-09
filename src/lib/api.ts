@@ -10,6 +10,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   
+  if (response.status === 401 && endpoint !== "/login") {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "/login";
+    throw new Error("Sesi telah berakhir. Silakan login kembali.");
+  }
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || "Something went wrong");

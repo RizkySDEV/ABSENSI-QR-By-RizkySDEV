@@ -51,137 +51,143 @@ let participants = [
 
 let attendance = [];
 
-async function startServer() {
-  const app = express();
-  app.use(express.json());
+const app = express();
+app.use(express.json());
 
-  // --- API Routes ---
+// --- API Routes ---
 
-  // Auth
-  app.post("/api/login", (req, res) => {
-    const { email, password } = req.body;
-    // Simple mock login
-    if (email === "admin@absensi.com" && password === "admin123") {
-      const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, { expiresIn: "1d" });
-      return res.json({ token, user: { email, role: "admin" } });
-    }
-    res.status(401).json({ message: "Email atau password salah" });
+// Auth
+app.post("/api/login", (req, res) => {
+  const { email, password } = req.body;
+  // Simple mock login
+  if (email === "admin@absensi.com" && password === "admin123") {
+    const token = jwt.sign({ email, role: "admin" }, JWT_SECRET, { expiresIn: "1d" });
+    return res.json({ token, user: { email, role: "admin" } });
+  }
+  res.status(401).json({ message: "Email atau password salah" });
+});
+
+// Middleware to verify JWT
+const authenticate = (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Unauthorized" });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: "Invalid token" });
+  }
+};
+
+// Dashboard Stats
+app.get("/api/stats", authenticate, (req, res) => {
+  const today = new Date().toISOString().split("T")[0];
+  const presentToday = attendance.filter(a => a.date === today).length;
+  res.json({
+    totalParticipants: participants.length,
+    presentToday,
+    attendanceRate: participants.length > 0 ? (presentToday / participants.length) * 100 : 0,
+    recentAttendance: attendance.slice(-5)
   });
+});
 
-  // Middleware to verify JWT
-  const authenticate = (req, res, next) => {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return res.status(401).json({ message: "Unauthorized" });
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      req.user = decoded;
-      next();
-    } catch (err) {
-      res.status(401).json({ message: "Invalid token" });
-    }
+// Participants
+app.get("/api/participants", authenticate, (req, res) => {
+  res.json(participants);
+});
+
+app.post("/api/participants", authenticate, (req, res) => {
+  const newParticipant = {
+    id: Math.random().toString(36).substr(2, 9),
+    ...req.body,
+    confirmed: false,
+    qrCode: req.body.nisn
+  };
+  participants.push(newParticipant);
+  res.json(newParticipant);
+});
+
+app.patch("/api/participants/:id/confirm", authenticate, (req, res) => {
+  const { id } = req.params;
+  const index = participants.findIndex(p => p.id === id);
+  if (index !== -1) {
+    participants[index].confirmed = true;
+    return res.json(participants[index]);
+  }
+  res.status(404).json({ message: "Peserta tidak ditemukan" });
+});
+
+// Attendance
+app.post("/api/attendance/scan", authenticate, (req, res) => {
+  const { qrCode } = req.body;
+  const participant = participants.find(p => p.qrCode === qrCode);
+  
+  if (!participant) {
+    return res.status(404).json({ message: "QR Code tidak valid" });
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const alreadyAttended = attendance.find(a => a.participantId === participant.id && a.date === today);
+
+  if (alreadyAttended) {
+    return res.status(400).json({ message: "Peserta sudah absen hari ini" });
+  }
+
+  const newAttendance = {
+    id: Math.random().toString(36).substr(2, 9),
+    participantId: participant.id,
+    name: participant.name,
+    nisn: participant.nisn,
+    class: participant.class,
+    field: participant.field,
+    date: today,
+    time: new Date().toLocaleTimeString()
   };
 
-  // Dashboard Stats
-  app.get("/api/stats", authenticate, (req, res) => {
-    const today = new Date().toISOString().split("T")[0];
-    const presentToday = attendance.filter(a => a.date === today).length;
-    res.json({
-      totalParticipants: participants.length,
-      presentToday,
-      attendanceRate: participants.length > 0 ? (presentToday / participants.length) * 100 : 0,
-      recentAttendance: attendance.slice(-5)
-    });
+  attendance.push(newAttendance);
+  
+  // Sync to Google Sheets asynchronously
+  syncToGoogleSheets({
+    NISN: newAttendance.nisn,
+    Nama: newAttendance.name,
+    Kelas: newAttendance.class,
+    Bidang: newAttendance.field,
+    Waktu: `${newAttendance.date} ${newAttendance.time}`
   });
 
-  // Participants
-  app.get("/api/participants", authenticate, (req, res) => {
-    res.json(participants);
-  });
+  res.json({ message: "Absensi berhasil", participant: newAttendance });
+});
 
-  app.post("/api/participants", authenticate, (req, res) => {
-    const newParticipant = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...req.body,
-      confirmed: false,
-      qrCode: req.body.nisn
-    };
-    participants.push(newParticipant);
-    res.json(newParticipant);
-  });
+app.get("/api/attendance", authenticate, (req, res) => {
+  res.json(attendance);
+});
 
-  app.patch("/api/participants/:id/confirm", authenticate, (req, res) => {
-    const { id } = req.params;
-    const index = participants.findIndex(p => p.id === id);
-    if (index !== -1) {
-      participants[index].confirmed = true;
-      return res.json(participants[index]);
-    }
-    res.status(404).json({ message: "Peserta tidak ditemukan" });
-  });
-
-  // Attendance
-  app.post("/api/attendance/scan", authenticate, (req, res) => {
-    const { qrCode } = req.body;
-    const participant = participants.find(p => p.qrCode === qrCode);
-    
-    if (!participant) {
-      return res.status(404).json({ message: "QR Code tidak valid" });
-    }
-
-    const today = new Date().toISOString().split("T")[0];
-    const alreadyAttended = attendance.find(a => a.participantId === participant.id && a.date === today);
-
-    if (alreadyAttended) {
-      return res.status(400).json({ message: "Peserta sudah absen hari ini" });
-    }
-
-    const newAttendance = {
-      id: Math.random().toString(36).substr(2, 9),
-      participantId: participant.id,
-      name: participant.name,
-      nisn: participant.nisn,
-      class: participant.class,
-      field: participant.field,
-      date: today,
-      time: new Date().toLocaleTimeString()
-    };
-
-    attendance.push(newAttendance);
-    
-    // Sync to Google Sheets asynchronously
-    syncToGoogleSheets({
-      NISN: newAttendance.nisn,
-      Nama: newAttendance.name,
-      Kelas: newAttendance.class,
-      Bidang: newAttendance.field,
-      Waktu: `${newAttendance.date} ${newAttendance.time}`
-    });
-
-    res.json({ message: "Absensi berhasil", participant: newAttendance });
-  });
-
-  app.get("/api/attendance", authenticate, (req, res) => {
-    res.json(attendance);
-  });
-
-  // --- Vite Middleware ---
+// --- Vite / Static Setup ---
+async function setupServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
+  } else {
+    // In production (Vercel), static files are handled by vercel.json rewrites
+    // But we keep this for local production testing
+    const distPath = path.join(process.cwd(), "dist");
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+setupServer();
+
+export default app;
